@@ -1,0 +1,95 @@
+# Link sorted BAM
+ln -s /home/student/resources/workshops/ws2-alignments/IND107/IND107-bwa-mem.sorted.bam
+
+# Index BAM
+samtools index IND107-bwa-mem.sorted.bam
+
+# Run Pilon
+pilon \
+--genome /home/student/resources/reference_sequence/Cryp_gatt_R265.genome.fa \
+--frags IND107-bwa-mem.sorted.bam \
+--output IND107-bwa-mem.sorted.bam.pilon \
+--vcf \
+--fix all
+
+# Filter low quality variants
+grep -vwE "(LowCov|Amb|Del)" IND107-bwa-mem.sorted.bam.pilon.vcf > IND107-bwa-mem.sorted.bam.pilon-filtered.vcf
+
+# Filter all isolates
+for i in */*.pilon.vcf; do
+  echo "filtering $i"
+  grep -vwE "(LowCov|Amb|Del)" $i > $i.filtered.vcf
+done
+
+#  perl script
+
+vim VCF_summary.pl
+
+press i
+
+#!/usr/bin/perl -w
+use strict;
+
+my $usage = "Usage: perl $0 <VCF>\n";
+die $usage unless(@ARGV eq 1);
+warn "Running $0 with the input file $ARGV[0]...\n";
+
+my $ref_counts = 0;
+my $snp_counts = 0;
+my $del_counts = 0;
+my $ins_counts = 0;
+
+open my $fh, '<', $ARGV[0] or die "Cannot open $ARGV[0] : $!";
+while(my $line=<$fh>) {
+  next if($line =~ m/^#/);
+  chomp $line;
+  my @bits = split /\t/, $line;
+  my ($contig, $position, $id, $ref, $consensus, $qual, $filter, $info, $format, $sample) = @bits;
+  my @sample_bits = split /:/, $sample;
+  my $genotype = $sample_bits[0];
+
+  if($genotype eq '0/0') {
+    $ref_counts++;
+  } else {
+    if(length($ref) > length($consensus)) { $del_counts++; }
+    elsif(length($consensus) > 1) { $ins_counts++; }
+    else { $snp_counts++; }
+  }
+}
+close $fh;
+
+warn "Number of reference bases = $ref_counts\n";
+warn "Number of deletions = $del_counts\n";
+warn "Number of insertions = $ins_counts\n";
+warn "Number of SNPs = $snp_counts\n";
+
+ESC
+:wq
+
+# run perl
+
+perl VCF_summary.pl
+
+# run with input (IND107)
+
+perl VCF_summary.pl IND107/IND107-bwa-mem.sorted.bam.pilon-filtered.vcf
+
+# one gene variants example
+# find erg11 cord
+
+grep CNB3_002300 /home/student/resources/reference_sequence/Cryp_gatt_R265.annotation.gff3
+
+# output if: scaffold3.4 : 93928–96038
+
+cp VCF_summary.pl VCF_look_for_ERG11_mutations.pl
+vim VCF_look_for_ERG11_mutations.pl
+
+next if($contig ne 'scaffold3.4');
+next unless($position >= 93928);
+next unless($position <= 96038);
+next if($genotype eq '0/0');
+print "$line\n";
+
+perl VCF_look_for_ERG11_mutations.pl IND107/IND107-bwa-mem.sorted.bam.pilon-filtered.vcf          
+
+          
