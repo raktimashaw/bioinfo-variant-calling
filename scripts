@@ -12,20 +12,28 @@ pilon \
 --vcf \
 --fix all
 
-# Filter low quality variants
+# see the vcf
+less IND107-bwa-mem.sorted.bam.pilon.vcf
+
+#  filter low quality variants
 grep -vwE "(LowCov|Amb|Del)" IND107-bwa-mem.sorted.bam.pilon.vcf > IND107-bwa-mem.sorted.bam.pilon-filtered.vcf
 
-# Filter all isolates
+ls
+
+# filter all isolates (go into common folder ws3)
+mkdir -p filtered_vcfs
+
 for i in */*.pilon.vcf; do
+  base=$(basename "$i")
   echo "filtering $i"
-  grep -vwE "(LowCov|Amb|Del)" $i > $i.filtered.vcf
+  grep -vwE "(LowCov|Amb|Del)" "$i" > filtered_vcfs/$base.filtered.vcf
 done
 
-#  perl script
+# perl script
 
 vim VCF_summary.pl
 
-press i
+# press i
 
 #!/usr/bin/perl -w
 use strict;
@@ -63,33 +71,73 @@ warn "Number of deletions = $del_counts\n";
 warn "Number of insertions = $ins_counts\n";
 warn "Number of SNPs = $snp_counts\n";
 
-ESC
-:wq
 
-# run perl
+# ESC then type :wq
 
 perl VCF_summary.pl
 
-# run with input (IND107)
-
+# run with an input now
 perl VCF_summary.pl IND107/IND107-bwa-mem.sorted.bam.pilon-filtered.vcf
 
-# one gene variants example
+
+# run on all isolates
+
+for vcf in */*.pilon-filtered.vcf; do
+  echo "========================================"
+  perl VCF_summary.pl "$vcf"
+done
+
+# now instead of whole genome variants, we take 1 gene and see variants in it among isolates
+
 # find erg11 cord
 
 grep CNB3_002300 /home/student/resources/reference_sequence/Cryp_gatt_R265.annotation.gff3
 
-# output if: scaffold3.4 : 93928–96038
+# (output if: scaffold3.4 : 93928–96038)
 
 cp VCF_summary.pl VCF_look_for_ERG11_mutations.pl
-vim VCF_look_for_ERG11_mutations.pl
 
-next if($contig ne 'scaffold3.4');
-next unless($position >= 93928);
-next unless($position <= 96038);
-next if($genotype eq '0/0');
-print "$line\n";
+# writing new perl script for this gene
 
-perl VCF_look_for_ERG11_mutations.pl IND107/IND107-bwa-mem.sorted.bam.pilon-filtered.vcf          
+vim VCF_look_for_ERG11_mutations.pl   
 
-          
+# press i and then copy: 
+
+open my $fh, '<', $ARGV[0] or die "Cannot open $ARGV[0] : $!";
+
+while(my $line=<$fh>) {
+  next if($line =~ m/^#/);
+  chomp $line;
+
+  my @bits = split /\t/, $line;
+  my ($contig, $position, $id, $ref, $consensus, $qual, $filter, $info, $format, $sample) = @bits;
+
+  my @sample_bits = split /:/, $sample;
+  my $genotype = $sample_bits[0];
+
+  # ERG11 filters
+  next if($contig ne 'scaffold3.4');
+  next unless($position >= 93928);
+  next unless($position <= 96038);
+  next if($genotype eq '0/0');
+
+  # print ERG11 variants
+  print "$line\n";
+}
+
+close $fh;
+
+
+perl VCF_look_for_ERG11_mutations_in_Cgattii.pl IND107/IND107-bwa-mem.sorted.bam.pilon-filtered.vcf
+
+# now for all isolates for this gene
+
+for vcf in */*.pilon-filtered.vcf; do
+  echo "===== $vcf ====="
+  perl VCF_look_for_ERG11_mutations_in_Cgattii.pl "$vcf"
+done
+
+
+
+
+
