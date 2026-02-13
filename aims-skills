@@ -1,0 +1,14 @@
+Variant calling workflow using Pilon on short-read alignments, followed by VCF filtering and variant summary.
+
+# Tools
+- samtools
+- Pilon
+- grep
+- Perl
+
+# Workflow
+1. Link sorted BAM
+2. Index BAM
+3. Run Pilon
+4. Filter low-quality variants
+5. Summarise variants
